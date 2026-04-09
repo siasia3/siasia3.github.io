@@ -484,7 +484,7 @@
         </div>
 
         <p class="project-desc">
-            Spring Boot 3 기반의 풀스택 SNS 플랫폼입니다. OAuth2 소셜 로그인, WebSocket 실시간 채팅,
+            Spring Boot 3 기반의 풀스택 SNS 플랫폼입니다. OAuth2 소셜 로그인, WebSocket 실시간 채팅, 알림,
             AWS S3 + CloudFront 미디어 서버, GitHub Actions CI/CD까지 직접 구축하였습니다.
             단순 기능 구현을 넘어 10만 건 더미 데이터 기반의 성능 측정과 쿼리 튜닝을 경험했습니다.
         </p>
@@ -504,6 +504,7 @@
         <div class="feature-grid">
             <div class="feature-item"><span class="feature-dot"></span>OAuth2 소셜 로그인 (Google, Naver) + JWT 인증</div>
             <div class="feature-item"><span class="feature-dot"></span>WebSocket STOMP 기반 1:1 실시간 채팅</div>
+            <div class="feature-item"><span class="feature-dot"></span>SSE 기반 실시간 알림 (댓글·답글)</div>
             <div class="feature-item"><span class="feature-dot"></span>AWS S3 + CloudFront 이미지/동영상 업로드</div>
             <div class="feature-item"><span class="feature-dot"></span>커서 기반 무한 스크롤 피드</div>
             <div class="feature-item"><span class="feature-dot"></span>친구 요청 / 수락 / 거절 관리</div>
@@ -667,8 +668,8 @@
                     <span class="step-num">05</span>
                     <div class="step-content">
                         <div class="step-label">추가 분석 — 서브쿼리 vs WHERE IN 성능 비교</div>
-                        <div class="step-text">
-                            인덱스 적용 후 더미 데이터 추가 전·후로 서브쿼리 방식과 WHERE IN 방식의 성능 변화를 비교 측정하였다.<br><br>
+                        <div class="step-text">                    
+                            인덱스 적용 후 대규모 환경을 가정하여 게시글 10만 건, 좋아요 40만 건, 댓글 40만 건의 더미 데이터 추가 전·후로 서브쿼리 방식과 WHERE IN 방식의 성능 변화를 비교 측정하였다.<br><br>
                             <table style="width:100%; border-collapse:collapse; margin-top:0.6rem; font-size:0.82rem;">
                                 <thead>
                                     <tr style="background:var(--bg); color:var(--muted);">
@@ -723,7 +724,7 @@
                         <div class="step-label">문제 인식</div>
                         <div class="step-text">
                             서비스 내 여러 무한 스크롤 기능에서 Offset 기반 페이지네이션을 사용하고 있었으나, 데이터 증가에 따른 성능 저하 가능성을 고려해 실제 성능 측정을 진행하였다.
-                            대표적으로 메인 피드 조회에서 초기 로딩 속도가 약 850ms로 측정되었으며, Cursor 방식으로 변경하는 개선을 진행하였다.
+                            대표적으로 메인 피드 조회에서 초기 로딩 속도가 약 150ms로 측정되었으며, 데이터가 증가할 경우 OFFSET 특성상 성능이 저하될 것으로 판단하여, Cursor 방식으로 변경하는 개선을 진행하였다.
                         </div>
                     </div>
                 </div>
@@ -732,8 +733,8 @@
                     <div class="step-content">
                         <div class="step-label">측정 (10만 건 기준)</div>
                         <div class="step-text">
-                            <strong style="color:var(--danger)">Offset</strong>: page 1 → 757ms / page 3,000 → 826ms / page 10,000 → 902ms (페이지 깊어질수록 증가)<br>
-                            <strong style="color:var(--accent)">Cursor</strong>: page 1 → 757ms / page 3,000 → 760ms / page 10,000 → 752ms (항상 일정)
+                            <strong style="color:var(--danger)">Offset</strong>: page 1 → 157ms / page 3,000 → 226ms / page 10,000 → 302ms (페이지 깊어질수록 증가)<br>
+                            <strong style="color:var(--accent)">Cursor</strong>: page 1 → 157ms / page 3,000 → 160ms / page 10,000 → 152ms (항상 일정)
                         </div>
                     </div>
                 </div>
@@ -749,9 +750,9 @@
                 </div>
                 <div class="result-box">
                     <span class="result-label">결과</span>
-                    <span class="result-value" style="color:var(--danger)">최대 902ms (offset)</span>
+                    <span class="result-value" style="color:var(--danger)">최대 302ms (offset)</span>
                     <span class="result-arrow">→</span>
-                    <span class="result-value result-after">752ms 일정 (cursor)</span>
+                    <span class="result-value result-after">152ms 일정 (cursor)</span>
                 </div>
             </div>
         </div>
