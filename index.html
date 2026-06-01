@@ -795,6 +795,131 @@
             </div>
         </div>
 
+        <!-- 5. Redis 캐싱 -->
+        <div class="trouble-section">
+            <div class="trouble-title">
+                Redis 캐싱 도입 — 부하테스트 기반 성능 개선
+                <span class="trouble-badge badge-perf">성능</span>
+            </div>
+            <div class="trouble-body">
+                <div class="trouble-step">
+                    <span class="step-num">01</span>
+                    <div class="step-content">
+                        <div class="step-label">문제 발견</div>
+                        <div class="step-text">
+                            쿼리 최적화 이후 단건 응답은 빠르게 개선되었으나, K6를 이용한 부하테스트(100VU)에서
+                            CPU 사용률이 100%에 도달하며 응답 지연이 급격히 증가하는 현상을 확인하였다.
+                            로그인 직후 진입하는 메인 피드는 트래픽이 집중되는 구간으로, 매 요청마다 DB 조회가
+                            발생하는 구조가 병목임을 판단하였다.
+                        </div>
+                    </div>
+                </div>
+                <div class="trouble-step">
+                    <span class="step-num">02</span>
+                    <div class="step-content">
+                        <div class="step-label">원인 분석</div>
+                        <div class="step-text">
+                            커넥션 풀을 늘려 DB 처리량을 높이는 방안을 먼저 시도하였으나, 이미 CPU가 한계에
+                            도달한 상태에서 DB 요청이 더 늘어나 오히려 응답속도가 느려지는 결과가 나왔다.
+                            또한 목록/상세 조회 시 JWT 토큰 검증 후 불필요하게 member를 한 번 더 DB에서
+                            재조회하는 로직이 존재하여 쿼리가 낭비되고 있었다.
+                        </div>
+                    </div>
+                </div>
+                <div class="trouble-step">
+                    <span class="step-num">03</span>
+                    <div class="step-content">
+                        <div class="step-label">해결</div>
+                        <div class="step-text">
+                            ① <strong>Spring Cache + Redis 캐싱 도입</strong> — 최신 피드 첫 페이지(20개)를
+                            <code>@Cacheable</code>로 캐싱, TTL 1분 설정.<br>
+                            게시글 작성·삭제 시 <code>@CacheEvict</code>로 즉시 무효화하여 TTL 만료를 기다리지 않고
+                            항상 최신 데이터 유지.<br><br>
+                            ② <strong>불필요한 member 재조회 제거</strong> — JWT 토큰에 포함된 id 값을 그대로
+                            사용하도록 변경, 조회마다 발생하던 member 쿼리 1건 제거.<br><br>
+                            ③ <strong>LocalDateTime 직렬화 이슈 해결</strong> — Redis 직렬화 시
+                            <code>GenericJackson2JsonRedisSerializer</code>가 <code>LocalDateTime</code>을
+                            지원하지 않는 문제를 Spring이 자동 구성한 <code>ObjectMapper</code>를 주입받아
+                            <code>copy()</code> 후 사용하는 방식으로 해결.
+                        </div>
+                    </div>
+                </div>
+                <div class="trouble-step">
+                    <span class="step-num">04</span>
+                    <div class="step-content">
+                        <div class="step-label">결과</div>
+                        <div class="step-text">
+                            캐싱 + member 재조회 제거를 함께 적용한 결과, 200VU · 400VU 부하테스트에서도
+                            응답시간이 안정적으로 유지됨을 확인하였다.<br>
+                            단순 캐싱 기술 도입보다 <strong>불필요한 DB 조회 제거</strong>가 더 큰 성능 향상을
+                            가져왔으며, 병목 지점을 정확히 파악하는 것이 우선임을 체감하였다.
+                        </div>
+                    </div>
+                </div>
+                <!-- K6 부하테스트 결과표 -->
+                <div style="margin-top:1.2rem;">
+                    <div style="font-size:0.82rem; color:var(--muted); margin-bottom:0.6rem;">📊 K6 부하테스트 결과 — p(95) 응답시간 기준</div>
+                    <table style="width:100%; border-collapse:collapse; font-size:0.81rem;">
+                        <thead>
+                            <tr style="background:var(--bg); color:var(--muted);">
+                                <th style="padding:7px 10px; text-align:left; border-bottom:1px solid #2a2d3a;">시나리오</th>
+                                <th style="padding:7px 10px; text-align:center; border-bottom:1px solid #2a2d3a;">VU</th>
+                                <th style="padding:7px 10px; text-align:right; border-bottom:1px solid #2a2d3a;">첫 페이지 p(95)</th>
+                                <th style="padding:7px 10px; text-align:right; border-bottom:1px solid #2a2d3a;">다음 페이지 p(95)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom:1px solid #1e2130;">
+                                <td style="padding:6px 10px; color:var(--danger);">기본 (커넥션 풀 10)</td>
+                                <td style="padding:6px 10px; text-align:center;">100</td>
+                                <td style="padding:6px 10px; text-align:right; color:var(--danger);">1,242 ms</td>
+                                <td style="padding:6px 10px; text-align:right; color:var(--danger);">1,140 ms</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #1e2130;">
+                                <td style="padding:6px 10px; color:var(--danger);">커넥션 풀 10 → 50 증가</td>
+                                <td style="padding:6px 10px; text-align:center;">100</td>
+                                <td style="padding:6px 10px; text-align:right; color:var(--danger);">1,858 ms ▲</td>
+                                <td style="padding:6px 10px; text-align:right; color:var(--danger);">1,728 ms ▲</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #1e2130;">
+                                <td style="padding:6px 10px;">커넥션 풀 복구 + 캐싱만 적용</td>
+                                <td style="padding:6px 10px; text-align:center;">100</td>
+                                <td style="padding:6px 10px; text-align:right; color:#f0a500;">552 ms</td>
+                                <td style="padding:6px 10px; text-align:right; color:#f0a500;">551 ms</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #1e2130; background:rgba(82,183,136,0.05);">
+                                <td style="padding:6px 10px; color:var(--accent);">캐싱 + member 재조회 제거</td>
+                                <td style="padding:6px 10px; text-align:center;">100</td>
+                                <td style="padding:6px 10px; text-align:right; color:var(--accent);">4 ms ✓</td>
+                                <td style="padding:6px 10px; text-align:right; color:var(--accent);">7 ms ✓</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #1e2130;">
+                                <td style="padding:6px 10px; color:var(--danger);">캐싱 없음</td>
+                                <td style="padding:6px 10px; text-align:center;">200</td>
+                                <td style="padding:6px 10px; text-align:right; color:var(--danger);">629 ms</td>
+                                <td style="padding:6px 10px; text-align:right; color:var(--danger);">529 ms</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #1e2130; background:rgba(82,183,136,0.05);">
+                                <td style="padding:6px 10px; color:var(--accent);">캐싱 적용</td>
+                                <td style="padding:6px 10px; text-align:center;">200</td>
+                                <td style="padding:6px 10px; text-align:right; color:var(--accent);">5 ms ✓</td>
+                                <td style="padding:6px 10px; text-align:right; color:var(--accent);">7 ms ✓</td>
+                            </tr>
+                            <tr style="background:rgba(82,183,136,0.05);">
+                                <td style="padding:6px 10px; color:var(--accent);">캐싱 적용</td>
+                                <td style="padding:6px 10px; text-align:center;">400</td>
+                                <td style="padding:6px 10px; text-align:right; color:var(--accent);">6 ms ✓</td>
+                                <td style="padding:6px 10px; text-align:right; color:var(--accent);">8 ms ✓</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div style="font-size:0.78rem; color:var(--muted); margin-top:0.5rem;">
+                        * 커넥션 풀을 늘렸을 때 오히려 응답시간이 증가한 것은 CPU가 이미 한계에 도달한 상태에서 DB 요청이 더 늘어났기 때문
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 4. Outbox Pattern -->
         <div class="trouble-section">
             <div class="trouble-title">
@@ -958,4 +1083,4 @@
                     </div>
                 </div>
             </div>
-        </div
+        </div>
