@@ -364,7 +364,7 @@
                     AWS S3 및 OCI Object Storage를 이용한 미디어 업로드 등 SNS 핵심 기능을 구현하였습니다.
                 </div>
                 <ul class="project-achievements">
-                    <li><strong>피드 조회 성능 개선</strong> — 1:N 다중 leftJoin으로 인한 카르테시안 곱 문제(post × likes × comments 행 폭증 + 임시 테이블 생성) 발견, 쿼리 최적화 및 복합 인덱스 적용으로 응답시간 750ms → 15ms</li>
+                    <li><strong>피드 조회 성능 개선 (단계적 최적화)</strong> — 1:N 다중 leftJoin 카르테시안 곱 문제(post × likes × comments 행 폭증 + 임시 테이블 생성) 발견, 쿼리 최적화 및 복합 인덱스 적용으로 응답시간 750ms → 15ms / K6 부하테스트(100VU) CPU 100% 도달 확인 → Spring Cache + Redis 캐싱 도입 및 불필요한 member 재조회 제거로 추가 개선 / 캐싱 적용 후 400VU에서도 안정적인 응답 확인</li>
                     <li><strong>커서 기반 페이지네이션 도입</strong> — 10만 건 기준 offset 방식은 페이지 깊어질수록 최대 300ms까지 증가하는 반면, cursor 방식은 150ms로 일정함을 직접 검증 후 무한 스크롤에 cursor 방식 적용</li>
                     <li><strong>CDN 도입</strong> — AWS S3 + CloudFront 연동으로 이미지 응답속도 개선, 캐싱 적용 후 재요청 응답시간 62% 감소</li>
                     <li><strong>인증 / 보안</strong> — JWT Access + Refresh Token 및 OAuth2 소셜 로그인(Google, Naver) 구현, Let's Encrypt HTTPS 적용</li>
